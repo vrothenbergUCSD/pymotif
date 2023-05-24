@@ -1,0 +1,10 @@
+# Ignore the settings file
+settings.json
+
+# Ignore the build directory
+build/*
+
+# Ignore compiled files
+*.pyc
+*.egg-info
+*.egg
