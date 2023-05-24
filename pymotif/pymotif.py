@@ -7,15 +7,19 @@ Similar to HOMER
 """
 
 import os
+import sys
+import math
 import argparse
+
 from pymotif import __version__
 from . import utils
-import sys
 
 from Bio import motifs
 from Bio.Seq import Seq
-# from Bio.Alphabet import IUPAC
 from pyfaidx import Fasta
+
+from collections import defaultdict
+
 
 def main():
     """
@@ -65,7 +69,7 @@ def main():
     # print(peaks_df.head())
     peaks = [tuple(x) for x in peaks_df[['chr', 'start', 'end']].values]
 
-    print(peaks)
+    # print(peaks)
 
     with open(motif_db_file, encoding='utf-8') as f:
         motifs_db = motifs.parse(f, 'jaspar')
@@ -82,22 +86,23 @@ def main():
     #         except Exception as e:
     #             print(f"Failed to parse with format '{format_type}': {str(e)}")
 
-    # for motif in motifs_db:
-    #     print(motif)
-    #     print(dir(motif))
+    for motif in motifs_db:
+        print(motif)
+        print(dir(motif))
         
-    #     print("Motif ID:", motif.base_id)
-    #     print("Motif Name:", motif.name)
-    #     print("Length of Motif:", motif.length)
-    #     num_instances = 0
-    #     if motif.instances:
-    #         num_instances = len(motif.instances)
-    #     print("Number of instances:", num_instances)
-    #     print("Consensus sequence:", motif.consensus)
-    #     break
+        print("Motif ID:", motif.base_id)
+        print("Motif Name:", motif.name)
+        print("Length of Motif:", motif.length)
+        num_instances = 0
+        if motif.instances:
+            num_instances = len(motif.instances)
+        print("Number of instances:", num_instances)
+        print("Consensus sequence:", motif.consensus, type(motif.consensus))
+        break
     
     # print('motifs_db')
     # print(motifs_db)
+
 
     # Load the genome
     genome = Fasta(genome_file)
@@ -106,66 +111,48 @@ def main():
 
     sequences = utils.get_peak_sequences(peaks, genome)
     print('Number of sequences:', len(sequences))
-    # print(sequences)
 
-    for sequence in sequences:
-        print('sequence:', sequence)
-        found_motifs = utils.find_motifs_in_sequence(sequence, motifs_db)
-        print(found_motifs)
+    all_motifs = defaultdict(list)
 
+    import time 
+    start_time = time.time()
 
-
-    # # Then for each peak sequence in your genome, call the function
-    # peak_sequence = Seq("GATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACA")
-    # found_motifs = utils.find_motifs_in_sequence(peak_sequence, motifs_db)
+    i = 0
+    for tup, sequence in sequences.items():
+        if i % 100 == 0:
+            print(i, 'elapsed time:', time.time() - start_time)
+        i += 1
+        if i == 100:
+            break
+        found_motifs = utils.find_motifs_in_sequence(str(sequence), motifs_db)
+        # print(found_motifs)
+        for motif in found_motifs:
+            all_motifs[motif].append([tup, sequence])
+            # utils.display_motif(motif)
     
+    end_time = time.time()
+    print('elapsed time:', end_time - start_time)
+
+    for motif in all_motifs:
+        print(motif)
+        print(all_motifs[motif])
+        break
+
+    sorted_dict = dict(sorted(all_motifs.items(), key=lambda x: len(x[1]), reverse=True))
+
+    from itertools import islice
+    top_5_keys = [(motif.base_id, len(all_motifs[motif])) for motif in list(islice(sorted_dict.keys(), 5))]
+
+    print(top_5_keys)   
+
     
+
+    
+    # # Use the function like this:
+    # utils.write_known_results_file(found_motifs, 'knownResults.txt', 
+    #                                len(sequences), len(background_sequences))
     
     sys.exit(0)
-
-
-    # # Set up output file
-    # if args.out is None:
-    # 	outf = sys.stdout
-    # else: outf = open(args.out, "w")
-
-    # # Load FASTA
-    # if args.fasta_ref is not None:
-    # 	if not os.path.exists(args.fasta_ref):
-    # 		myutils.ERROR("{fasta} does not exist".format(fasta=args.fasta_ref))
-    # 	reffasta = pyfaidx.Fasta(args.fasta_ref)
-    # else:
-    # 	reffasta = None
-
-    # # Load BAM
-    # bamfile = pysam.AlignmentFile(args.bam, "rb")
-
-    # if args.region is not None:
-    # 	region = args.region
-    # else:
-    # 	region = None
-
-    # # Peform pileup
-    # for pileupcolumn in bamfile.pileup(region=region):
-    # 	chrom = pileupcolumn.reference_name
-    # 	position = pileupcolumn.reference_pos
-    # 	numreads = 0
-    # 	if reffasta is not None:
-    # 		refbase = str(reffasta[chrom][position])
-    # 	else:
-    # 		refbase = "N"
-    # 	read_bases = []
-    # 	read_quals = []
-    # 	for pileupread in pileupcolumn.pileups:
-    # 		if not pileupread.is_del and not pileupread.is_refskip:
-    # 		# query position is None if is_del or is_refskip is set.
-    # 			read_bases.append(myutils.GetReadBase(pileupread, refbase))
-    # 			read_quals.append(myutils.GetReadQual(pileupread))
-    # 			numreads += 1
-    # 	outf.write("\t".join([chrom, str(position+1), refbase, str(numreads), \
-    # 			"".join(read_bases), "".join(read_quals)])+"\n")
-    # bamfile.close()
-    # outf.close()
     
 
 if __name__ == "__main__":

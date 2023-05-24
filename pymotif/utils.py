@@ -4,11 +4,13 @@ Utility functions for pymotif.
 
 import os
 import sys
+import math
+import random
 import pandas as pd
+import numpy as np
+import scipy.stats as stats
 from Bio import motifs
 from Bio.Seq import Seq
-import math
-from scipy.stats import bernoulli
 
 
 class bcolors:
@@ -128,3 +130,199 @@ def write_known_results_file(found_motifs, filename, total_sequences, total_back
                 num_target_sequences, percent_target_sequences, 
                 num_background_sequences, percent_background_sequences))
 
+
+def display_motif(motif):
+    print("Motif:", motif, type(motif))
+    print("Motif ID:", motif.base_id)
+    print("Motif Name:", motif.name)
+    print("Length of Motif:", motif.length)
+    num_instances = 0
+    if motif.instances:
+        num_instances = len(motif.instances)
+    print("Number of instances:", num_instances)
+    print("Consensus sequence:", motif.consensus, type(motif.consensus))
+    print("PWM:", motif.pwm, type(motif.pwm))
+    print(dir(motif))
+
+
+nucs = {"A": 0, "C": 1, "G": 2, "T": 3}
+rev_nucs = {"A": "T", "C": "G", "G": "C", "T": "A"}
+
+def score_seq(pwm, sequence):
+    """ Score a sequence using a PWM
+    
+    Parameters
+    ----------
+    pwm : 2d np.array
+       Position weight matrix
+    sequence : str
+       Sequence of nucleotides to be scored
+       
+    Returns
+    -------
+    score : float
+       PWM score of the sequence
+    """
+    score = 0
+    for i,b in enumerate(sequence):
+        # Check if sequence nucleotide index is out of bounds
+        if i >= pwm.shape[1]:
+            break
+        ind = nucs[b]
+        score += pwm[ind,i]     
+    return score
+
+def reverse_complement(sequence):
+    """ Get the reverse complement of a sequence
+    
+    Parameters
+    ----------
+    sequence : str
+      Sequence of nucleotides
+      
+    Returns
+    -------
+    revcomp : str
+      Reverse complement of sequence
+    """
+    revcomp = ""
+    comp = [rev_nucs[s] for s in sequence]
+    revcomp = ''.join(comp)[::-1]
+    return revcomp
+
+def find_max_score(pwm, sequence):
+    """ Get highest PWM match for a sequence
+    
+    Scan a sequence with a pwm
+    Compute the highest pwm score for a given sequence
+    Be sure to check the forward and reverse strands!
+    
+    Parameters
+    ----------
+    pwm : 2d np.array
+       PWM matrix
+    sequence : str
+       Sequence of nucleotides
+       
+    Returns
+    -------
+    max_score : float
+       Score of top match to the PWM
+    """
+    max_score = -1*np.inf
+    rev_sequence = reverse_complement(sequence)
+    M = pwm.shape[1]
+    L = len(sequence)
+    for i in range(L-M+1):      
+        fwd_seq = sequence[i:i+M]
+        fwd_score = score_seq(pwm, fwd_seq)
+        rev_seq = rev_sequence[i:i+M]
+        rev_score = score_seq(pwm, rev_seq)      
+        max_score = max(max_score, fwd_score, rev_score)
+
+    return max_score
+
+def compute_nuc_freqs(sequences):
+    """ Compute nucleotide frequencies of a list of sequences
+    
+    Parameters
+    ----------
+    sequences : list of str
+       List of sequences
+       
+    Returns
+    -------
+    freqs : list of float
+       Frequencies of A, C, G, T in the sequences
+    """
+    freqs = [0.25, 0.25, 0.25, 0.25] # compute frequency of A, C, G, T
+    nuc_counts = [0,0,0,0]
+    for seq in sequences:
+        for nuc in seq:
+            ind = nucs[nuc]
+            nuc_counts[ind] += 1      
+    nuc_total = sum(nuc_counts)
+    freqs = nuc_counts / nuc_total
+    return freqs
+
+def random_sequence(n, freqs):
+    """ Generate a random string of nucleotides of length n
+    
+    Use the given nucleotide frequences
+    
+    Parameters
+    ----------
+    n : int
+       Length of random string to generate
+    freqs : list of float
+       List of frequencies of A, C, G, T
+       
+    Returns
+    -------
+    seq : str
+       random sequence of length n with the specified allele frequencies
+    """
+    nucleotides = ['A', 'C', 'G', 'T']
+    seq = ''.join(np.random.choice(nucleotides, size=n, p=freqs))
+    return seq
+
+def get_threshold(null_dist, pval):
+    """ Find the threshold to achieve a desired p-value
+    
+    Given a null distribution (list of values),
+    find the threshold to achieve a desired p-value
+    
+    Parameters
+    ----------
+    null_dist : list of float
+       Null distribution of scores
+    pval : float
+       pval% of null_dist should be above the threshold returned
+       
+    Returns
+    -------
+    thresh : float
+       Threshold to achieve the desired p-value    
+    """
+    thresh = 0 # set this  below to be the score threshold to obtain a p-value <0.01
+    thresh = np.percentile(null_dist, (1 - pval) * 100)
+    return thresh
+
+def compute_enrichment(peak_total, peak_motif, bg_total, bg_motif):
+    """ Compute fisher exact test to test whether motif enriched in bound sequences
+    
+    Parameters
+    ----------
+    peak_total : int
+       Number of total peaks
+    peak_motif : int
+       Number of peaks matching the motif
+    bg_total : int
+       Number of background sequences
+    bg_motif : int
+       Number of background sequences matching the motif
+       
+    Returns
+    -------
+    pval : float
+       Fisher Exact Test p-value    
+    """
+    pval = -1
+    A = peak_motif
+    B = peak_total - peak_motif
+    C = bg_motif
+    D = bg_total - bg_motif
+    table = [[A,B],[C,D]]
+    odds, pval = stats.fisher_exact(table)
+    return pval
+
+def compute_motif_pvals(PWMList, peak_seqs, bg_seqs, pwm_thresholds, pwm_names):
+    for i in range(len(PWMList)):
+        pwm = PWMList[i]
+        thresh = pwm_thresholds[i]
+        num_peak_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in peak_seqs])
+        num_bg_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in bg_seqs])
+        pval = compute_enrichment(len(peak_seqs), num_peak_pass, len(bg_seqs), num_bg_pass)
+        print("PWM: %s, %s/%s peaks, %s/%s background; p-val: %s"%(pwm_names[i], \
+            num_peak_pass, len(peak_seqs), num_bg_pass, len(bg_seqs), pval))
+        
