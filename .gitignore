@@ -8,3 +8,6 @@ build/*
 *.pyc
 *.egg-info
 *.egg
+
+# Ignore genome fasta file
+example-files/GRCm38.fa
