@@ -7,8 +7,10 @@ import sys
 import pandas as pd
 from Bio import motifs
 from Bio.Seq import Seq
-# from Bio.Alphabet import IUPAC
-from pyfaidx import Fasta
+import math
+from scipy.stats import bernoulli
+
+
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -78,7 +80,7 @@ def find_motifs_in_sequence(sequence, motifs_db):
     found_motifs = []
 
     for motif in motifs_db:
-        if motif.consensus in sequence:
+        if str(motif.consensus) in sequence:
             found_motifs.append(motif)
 
     return found_motifs
@@ -96,4 +98,33 @@ def get_peak_sequences(peaks, genome):
         chr = str(chr)  # convert integer to string
         sequences[peak] = str(genome[chr][start:end].seq)
     return sequences
+
+def write_known_results_file(found_motifs, filename, total_sequences, total_background):
+    with open(filename, 'w') as f:
+        # Write the header
+        f.write("Motif Name\tConsensus\tP-value\tLog P-value\tq-value (Benjamini)\t# of Target Sequences with Motif(of {0})\t% of Target Sequences with Motif\t# of Background Sequences with Motif(of {1})\t% of Background Sequences with Motif\n".format(total_sequences, total_background))
+        
+        # Write the values for each motif
+        for motif in found_motifs:
+            name = motif.name
+            consensus = motif.consensus
+            # Assuming that p_value, q_value are attributes of the motif object (you'll need to calculate them somehow)
+            p_value = motif.p_value  
+            q_value = motif.q_value 
+            log_p_value = math.log10(p_value) * -1  # convert p-value to log scale and make it positive
+
+            # Calculate the number and percentage of sequences with the motif
+            num_target_sequences = len(motif.instances)
+            percent_target_sequences = num_target_sequences / total_sequences * 100
+
+            # Calculate the number and percentage of background sequences with the motif
+            # (This requires knowing how the motif was found in the background sequences)
+            num_background_sequences = len(motif.background_instances)
+            percent_background_sequences = num_background_sequences / total_background * 100
+
+            # Write the line for this motif
+            f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6:.2f}%\t{7}\t{8:.2f}%\n".format(
+                name, consensus, p_value, log_p_value, q_value, 
+                num_target_sequences, percent_target_sequences, 
+                num_background_sequences, percent_background_sequences))
 
