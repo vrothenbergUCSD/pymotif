@@ -9,9 +9,14 @@ import random
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
-from Bio import motifs
+from Bio import motifs, SeqIO
 from Bio.Seq import Seq
+from collections import defaultdict
+import time
+import pysam
 
+nucs = {"A": 0, "C": 1, "G": 2, "T": 3}
+rev_nucs = {"A": "T", "C": "G", "G": "C", "T": "A"}
 
 class bcolors:
     HEADER = '\033[95m'
@@ -102,7 +107,7 @@ def get_peak_sequences(peaks, genome):
     return sequences
 
 def write_known_results_file(found_motifs, filename, total_sequences, total_background):
-    with open(filename, 'w') as f:
+    with open(filename, 'w', encoding='utf-8') as f:
         # Write the header
         f.write("Motif Name\tConsensus\tP-value\tLog P-value\tq-value (Benjamini)\t# of Target Sequences with Motif(of {0})\t% of Target Sequences with Motif\t# of Background Sequences with Motif(of {1})\t% of Background Sequences with Motif\n".format(total_sequences, total_background))
         
@@ -145,8 +150,7 @@ def display_motif(motif):
     print(dir(motif))
 
 
-nucs = {"A": 0, "C": 1, "G": 2, "T": 3}
-rev_nucs = {"A": "T", "C": "G", "G": "C", "T": "A"}
+
 
 def score_seq(pwm, sequence):
     """ Score a sequence using a PWM
@@ -166,7 +170,7 @@ def score_seq(pwm, sequence):
     score = 0
     for i,b in enumerate(sequence):
         # Check if sequence nucleotide index is out of bounds
-        if i >= pwm.shape[1]:
+        if i >= pwm.length:
             break
         ind = nucs[b]
         score += pwm[ind,i]     
@@ -211,7 +215,7 @@ def find_max_score(pwm, sequence):
     """
     max_score = -1*np.inf
     rev_sequence = reverse_complement(sequence)
-    M = pwm.shape[1]
+    M = pwm.length
     L = len(sequence)
     for i in range(L-M+1):      
         fwd_seq = sequence[i:i+M]
@@ -239,10 +243,11 @@ def compute_nuc_freqs(sequences):
     nuc_counts = [0,0,0,0]
     for seq in sequences:
         for nuc in seq:
-            ind = nucs[nuc]
-            nuc_counts[ind] += 1      
+            ind = nucs.get(nuc, -1)  # use get to avoid KeyError if nuc not in nucs
+            if ind != -1:  # if nuc was in nucs
+                nuc_counts[ind] += 1     
     nuc_total = sum(nuc_counts)
-    freqs = nuc_counts / nuc_total
+    freqs = [count / nuc_total for count in nuc_counts]
     return freqs
 
 def random_sequence(n, freqs):
@@ -316,13 +321,87 @@ def compute_enrichment(peak_total, peak_motif, bg_total, bg_motif):
     odds, pval = stats.fisher_exact(table)
     return pval
 
-def compute_motif_pvals(PWMList, peak_seqs, bg_seqs, pwm_thresholds, pwm_names):
-    for i in range(len(PWMList)):
-        pwm = PWMList[i]
-        thresh = pwm_thresholds[i]
+
+def generate_background_sequences(fasta_file, num_sequences, sequence_length):
+    """
+    Generate a list of randomly sampled sequences from a genome FASTA file
+    """
+    # Load the indexed FASTA file
+    fasta = pysam.Fastafile(fasta_file)
+
+    # Create the cumulative length list
+    cumulative_lengths = []
+    total_length = 0
+    for length in fasta.lengths:
+        total_length += length
+        cumulative_lengths.append(total_length)
+
+    bg_seqs = []
+
+    for n in range(num_sequences):
+
+        sequence = 'N'  # initialize sequence with 'N' to enter the while loop
+        while 'N' in sequence:  # keep looping until we get a sequence without 'N'
+
+            # Generate a random position in the genome
+            random_position = random.randint(1, total_length)
+
+            # Identify the sequence this position belongs to
+            sequence_index = next(i for i, cumulative_length in enumerate(cumulative_lengths) if cumulative_length >= random_position)
+
+            # Translate the genome-wide position to a position within the sequence
+            if sequence_index > 0:
+                position_in_sequence = random_position - cumulative_lengths[sequence_index - 1]
+            else:
+                position_in_sequence = random_position
+
+            # Check if the end of the sequence goes beyond the chromosome length, if yes, regenerate the random_position
+            while position_in_sequence + sequence_length - 1 > fasta.lengths[sequence_index]:
+                random_position = random.randint(1, total_length)
+                sequence_index = next(i for i, cumulative_length in enumerate(cumulative_lengths) if cumulative_length >= random_position)
+                if sequence_index > 0:
+                    position_in_sequence = random_position - cumulative_lengths[sequence_index - 1]
+                else:
+                    position_in_sequence = random_position
+
+            # Fetch the sequence
+            sequence = fasta.fetch(fasta.references[sequence_index], position_in_sequence - 1, position_in_sequence - 1 + sequence_length)
+
+        bg_seqs.append(sequence)
+
+    fasta.close()
+    return bg_seqs
+
+
+def compute_motif_pvals(motif_db, peak_seqs, bg_seqs, num_sim=10000, 
+                        null_pval_thresh=0.01, enrichment_pval_thresh=1e-5):
+    """
+    Compute p-values for each motif in a database.
+    Add motif to found_motifs if it passes the enrichment p-value thresholds.
+    """
+    # bg_seqs = [get_background_sequence(genome, len(peak_seqs[0]), freqs) for i in range(len(peak_seqs))]
+    freqs = compute_nuc_freqs(peak_seqs + bg_seqs
+                              + [reverse_complement(item) for item in peak_seqs]
+                              + [reverse_complement(item) for item in bg_seqs])
+
+    start_time = time.time()
+    found_motifs = defaultdict(dict)
+    for i, motif in enumerate(motif_db):
+        motif_id = motif.base_id
+        print(f'Processing motif {motif_id} ({i+1}/{len(motif_db)}) Time elapsed: {time.time() - start_time:.2f}')
+        pwm = motif.pwm
+        null_scores = [score_seq(pwm, random_sequence(pwm.length, freqs)) for j in range(num_sim)]
+        thresh = get_threshold(null_scores, null_pval_thresh)
         num_peak_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in peak_seqs])
         num_bg_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in bg_seqs])
         pval = compute_enrichment(len(peak_seqs), num_peak_pass, len(bg_seqs), num_bg_pass)
-        print("PWM: %s, %s/%s peaks, %s/%s background; p-val: %s"%(pwm_names[i], \
-            num_peak_pass, len(peak_seqs), num_bg_pass, len(bg_seqs), pval))
+        if pval < enrichment_pval_thresh:
+            found_motifs[motif_id]['motif'] = motif
+            found_motifs[motif_id]['pval'] = pval
+            found_motifs[motif_id]['num_peak_pass'] = num_peak_pass
+            found_motifs[motif_id]['num_bg_pass'] = num_bg_pass
+            print(f"PWM: {motif_id}, {num_peak_pass}/{len(peak_seqs)} peaks, \
+                {num_bg_pass}/{len(bg_seqs)} background; p-val: {pval}")
+    return found_motifs
+
         

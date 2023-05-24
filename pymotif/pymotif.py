@@ -14,7 +14,7 @@ import argparse
 from pymotif import __version__
 from . import utils
 
-from Bio import motifs
+from Bio import motifs, SeqIO
 from Bio.Seq import Seq
 from pyfaidx import Fasta
 
@@ -86,19 +86,21 @@ def main():
     #         except Exception as e:
     #             print(f"Failed to parse with format '{format_type}': {str(e)}")
 
-    for motif in motifs_db:
-        print(motif)
-        print(dir(motif))
+    # for motif in motifs_db:
+    #     print(motif)
+    #     print(dir(motif))
         
-        print("Motif ID:", motif.base_id)
-        print("Motif Name:", motif.name)
-        print("Length of Motif:", motif.length)
-        num_instances = 0
-        if motif.instances:
-            num_instances = len(motif.instances)
-        print("Number of instances:", num_instances)
-        print("Consensus sequence:", motif.consensus, type(motif.consensus))
-        break
+    #     print("Motif ID:", motif.base_id)
+    #     print("Motif Name:", motif.name)
+    #     print("Length of Motif:", motif.length)
+    #     num_instances = 0
+    #     if motif.instances:
+    #         num_instances = len(motif.instances)
+    #     print("Number of instances:", num_instances)
+    #     print("Consensus sequence:", motif.consensus, type(motif.consensus))
+    #     print("PWM:", motif.pwm, type(motif.pwm), dir(motif.pwm))
+    #     break
+
     
     # print('motifs_db')
     # print(motifs_db)
@@ -111,41 +113,52 @@ def main():
 
     sequences = utils.get_peak_sequences(peaks, genome)
     print('Number of sequences:', len(sequences))
+    peak_seqs = [str(sequence) for sequence in sequences.values()]
+    # print('peak_seqs', len(peak_seqs), len(peak_seqs[0]))
+    # print('peak_seqs[0]:', peak_seqs[0])
 
-    all_motifs = defaultdict(list)
-
-    import time 
-    start_time = time.time()
-
-    i = 0
-    for tup, sequence in sequences.items():
-        if i % 100 == 0:
-            print(i, 'elapsed time:', time.time() - start_time)
-        i += 1
-        if i == 100:
-            break
-        found_motifs = utils.find_motifs_in_sequence(str(sequence), motifs_db)
-        # print(found_motifs)
-        for motif in found_motifs:
-            all_motifs[motif].append([tup, sequence])
-            # utils.display_motif(motif)
-    
-    end_time = time.time()
-    print('elapsed time:', end_time - start_time)
-
-    for motif in all_motifs:
-        print(motif)
-        print(all_motifs[motif])
-        break
-
-    sorted_dict = dict(sorted(all_motifs.items(), key=lambda x: len(x[1]), reverse=True))
-
-    from itertools import islice
-    top_5_keys = [(motif.base_id, len(all_motifs[motif])) for motif in list(islice(sorted_dict.keys(), 5))]
-
-    print(top_5_keys)   
+    bg_seqs = utils.generate_background_sequences(genome_file, len(peak_seqs), len(peak_seqs[0]))
+    # print('bg_seqs', len(bg_seqs), len(bg_seqs[0]))
+    # print('bg_seqs[0]:', bg_seqs[0])
 
     
+
+    found_motifs = utils.compute_motif_pvals(motifs_db, peak_seqs, bg_seqs)
+    print('found_motifs')
+    print(found_motifs)
+
+    # import time 
+    # start_time = time.time()
+
+    # i = 0
+    # for tup, sequence in sequences.items():
+    #     if i % 100 == 0:
+    #         print(i, 'elapsed time:', time.time() - start_time)
+    #     i += 1
+    #     if i == 100:
+    #         break
+    #     found_motifs = utils.find_motifs_in_sequence(str(sequence), motifs_db)
+    #     # print(found_motifs)
+    #     for motif in found_motifs:
+    #         all_motifs[motif].append([tup, sequence])
+    #         # utils.display_motif(motif)
+    
+    # end_time = time.time()
+    # print('elapsed time:', end_time - start_time)
+
+    # for motif in all_motifs:
+    #     print(motif)
+    #     print(all_motifs[motif])
+    #     break
+
+    # sorted_dict = dict(sorted(all_motifs.items(), key=lambda x: len(x[1]), reverse=True))
+
+    # from itertools import islice
+    # top_5_keys = [(motif.base_id, len(all_motifs[motif])) for motif in list(islice(sorted_dict.keys(), 5))]
+
+    # print(top_5_keys)   
+
+
 
     
     # # Use the function like this:
