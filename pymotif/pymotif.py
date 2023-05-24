@@ -6,11 +6,16 @@ Command-line script to perform motif finding
 Similar to HOMER
 """
 
-import argparse
-from . import utils
-from pymotif import __version__
 import os
+import argparse
+from pymotif import __version__
+from . import utils
 import sys
+
+from Bio import motifs
+from Bio.Seq import Seq
+# from Bio.Alphabet import IUPAC
+from pyfaidx import Fasta
 
 def main():
     """
@@ -28,40 +33,56 @@ def main():
 
     # Optional arguments
     parser.add_argument("-size", help="Size of motif to search for", type=int, default=200)
-    # 'store_true' makes this False by default but can be made True by including '-mask' in the command
-    parser.add_argument("-mask", help="Use to mask the genome", action='store_true') 
+    # mask the genome False by default
+    parser.add_argument("-mask", help="Use to mask the genome", action='store_true')
+    parser.add_argument("--version", help="Print the version and quit", \
+        action="version", version = f'{__version__}')
 
     # Parse the arguments
     args = parser.parse_args()
 
     print('PyMotif!')
 
-    # You can then use these arguments in your script like this:
+    # Print the arguments
     print(f"Peak file: {args.peak_file}")
     print(f"Genome: {args.genome}")
     print(f"Output directory: {args.output_directory}")
     print(f"Motif size: {args.size}")
     print(f"Mask genome: {args.mask}")
+
+    motif_db_file = "example-files/JASPAR2022_CORE_non-redundant_pfms_meme.txt"
+    motif_db_file = utils.convert_to_absolute(motif_db_file)
+    print(f"Motif database file: {motif_db_file}")
+
+    peak_file = utils.convert_to_absolute(args.peak_file)
+    genome_file = utils.convert_to_absolute(args.genome)
+    output_directory = utils.convert_to_absolute(args.output_directory)
+
+    peaks_df = utils.read_peaks_file(peak_file)
+
+    print(peaks_df.head())
+
+    # Read your motifs from a MEME file (replace with the path to your .meme file)
+    with open(motif_db_file, encoding='utf-8') as f:
+        motifs_db = motifs.parse(f, "meme")
+    
+    print('motifs_db')
+    print(motifs_db)
+
+    # Load the genome
+    genome = Fasta(genome_file)
+    print('genome')
+    print(genome)
+
+    # Then for each peak sequence in your genome, call the function
+    # peak_sequence = Seq("GATTACA")
+    # found_motifs = utils.find_motifs_in_sequence(peak_sequence, motifs_db)
+    # print('Found motifs:')
+    # print(found_motifs)
     
     
     sys.exit(0)
 
-    # # Output
-    # parser.add_argument("-o", "--out", help="Write output to file. " \
-    # 	"Default: stdout", metavar="FILE", type=str, required=False)
-
-    # # Other options
-    # parser.add_argument("-f", "--fasta-ref", \
-    # 	help="faidx indexed reference sequence file", \
-    # 	type=str, metavar="FILE", required=False)
-    # parser.add_argument("-r", "--region", help="region in which pileup is " \
-    # 	"generated. Format chr:start-end", \
-    # 	type=str, metavar="REG", required=False)
-    # parser.add_argument("--version", help="Print the version and quit", \
-    # 	action="version", version = '{version}'.format(version=__version__))
-
-    # # Parse args
-    # args = parser.parse_args()
 
     # # Set up output file
     # if args.out is None:

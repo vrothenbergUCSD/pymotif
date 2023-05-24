@@ -6,7 +6,25 @@ PyMotif is a bioinformatics tool designed to identify enriched motifs from DNA s
 
 # Install instructions
 
-Todo
+Installation requires the `pandas` , `pyfaidx` and `BioPython` libraries to be installed. You can install these with `pip`:
+
+```
+pip install pandas BioPython pyfaidx
+```
+
+Once required libraries are installed, you can install `pymotif` with the following command:
+
+```
+python setup.py install
+```
+
+Note: if you do not have root access, you can run the commands above with additional options to install locally:
+```
+pip install --user pandas BioPython
+python setup.py install --user
+```
+
+If the install was successful, typing `pymotif --help` should show a useful message.
 
 # Basic usage
 
@@ -16,10 +34,13 @@ The basic usage of `pymotif` is:
 pymotif <peaks file> <genome> <output directory> -size # [options]
 ```
 
+The follwoing command assumes you are in the repo directory and have downloaded GRCm38.fa to the example-files folder.
+
 To run `pymotif` on a small test example (using files in this repo):
 ```
-pymotif ERpeaks.txt hg18 ER_MotifOutput/ -size 200 -mask
+pymotif example-files/peaks.txt example-files/GRCm38.fa ~/testOutput/ -size 200 -mask
 ```
+
 
 This should produce the output below:
 ```

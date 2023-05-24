@@ -2,9 +2,13 @@
 Utility functions for pymotif.
 """
 
+import os
 import sys
 import pandas as pd
-
+from Bio import motifs
+from Bio.Seq import Seq
+# from Bio.Alphabet import IUPAC
+from pyfaidx import Fasta
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -27,6 +31,18 @@ def ERROR(msg):
     """
     sys.stderr.write(bcolors.FAIL + "[ERROR]: " + bcolors.ENDC + "{msg}\n".format(msg=msg) )
     sys.exit(1)
+
+def convert_to_absolute(path):
+    """
+    Check if path is relative and if true then convert to absolute path
+    """
+    # Expand ~ if present in the path
+    path = os.path.expanduser(path)
+
+    if not os.path.isabs(path):
+        # Convert relative path to absolute
+        path = os.path.abspath(path)
+    return path
 
 def read_peaks_file(file_path):
     """
@@ -54,5 +70,29 @@ def count_header_lines(file_path):
     # If no line starts with "#PeakID", return None
     return None
 
+def find_motifs_in_sequence(sequence, motifs_db):
+    """
+    This function takes a sequence and a motifs database,
+    and returns motifs found in the sequence.
+    """
+    found_motifs = []
 
+    for motif in motifs_db:
+        if motif.consensus in sequence:
+            found_motifs.append(motif)
+
+    return found_motifs
+
+def get_peak_sequences(peaks, genome):
+    """
+    This function extracts the sequences corresponding to each peak from the genome.
+    :param peaks: List of tuples. Each tuple should have three elements: (chr, start, end).
+    :param genome: Fasta object of the genome.
+    :return: Dictionary where keys are the peak tuples and values are the sequences.
+    """
+    sequences = {}
+    for peak in peaks:
+        chr, start, end = peak
+        sequences[peak] = str(genome[chr][start:end].seq)
+    return sequences
 
