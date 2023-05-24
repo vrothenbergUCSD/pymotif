@@ -10,4 +10,5 @@ build/*
 *.egg
 
 # Ignore genome fasta file
-example-files/GRCm38.fa
+example-files/*.fa
+example-files/*.fai
