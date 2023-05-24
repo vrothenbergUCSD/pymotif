@@ -50,7 +50,9 @@ def main():
     print(f"Motif size: {args.size}")
     print(f"Mask genome: {args.mask}")
 
-    motif_db_file = "example-files/JASPAR2022_CORE_non-redundant_pfms_meme.txt"
+    # motif_db_file = "example-files/JASPAR2022_CORE_non-redundant_pfms_meme.txt"
+
+    motif_db_file = "example-files/JASPAR2022_CORE_non-redundant_pfms_jaspar.txt"
     motif_db_file = utils.convert_to_absolute(motif_db_file)
     print(f"Motif database file: {motif_db_file}")
 
@@ -60,45 +62,63 @@ def main():
 
     peaks_df = utils.read_peaks_file(peak_file)
 
-    print(peaks_df.head())
+    # print(peaks_df.head())
+    peaks = [tuple(x) for x in peaks_df[['chr', 'start', 'end']].values]
 
-    # Read your motifs from a MEME file (replace with the path to your .meme file)
-    with open(motif_db_file) as f:
-        for format_type in ['minimal', 'pfm', 'transfac', 'jaspar', 'meme', 'sites']:
-            try:
-                f.seek(0)
-                motifs_db = motifs.parse(f, format_type)
-                print(f"Successfully parsed with format '{format_type}'")
-            except Exception as e:
-                print(f"Failed to parse with format '{format_type}': {str(e)}")
+    print(peaks)
 
-    for motif in motifs_db:
-        print(motif)
-        print(dir(motif))
+    with open(motif_db_file, encoding='utf-8') as f:
+        motifs_db = motifs.parse(f, 'jaspar')
+
+
+    # # Read your motifs from a MEME file (replace with the path to your .meme file)
+    # with open(motif_db_file) as f:
+    #     for format_type in ['pfm', 'transfac', 'jaspar','meme', 'sites']:
+    #     # for format_type in ['minimal', 'pfm', 'transfac', 'jaspar', 'meme', 'sites']:
+    #         try:
+    #             f.seek(0)
+    #             motifs_db = motifs.parse(f, format_type)
+    #             print(f"Successfully parsed with format '{format_type}'")
+    #         except Exception as e:
+    #             print(f"Failed to parse with format '{format_type}': {str(e)}")
+
+    # for motif in motifs_db:
+    #     print(motif)
+    #     print(dir(motif))
         
-        # print("Motif ID:", motif.id)
-        print("Motif Name:", motif.name)
-        print("Length of Motif:", motif.length)
-        num_instances = 0
-        if motif.instances:
-            num_instances = len(motif.instances)
-        print("Number of instances:", num_instances)
-        print("Consensus sequence:", motif.consensus)
-        break
+    #     print("Motif ID:", motif.base_id)
+    #     print("Motif Name:", motif.name)
+    #     print("Length of Motif:", motif.length)
+    #     num_instances = 0
+    #     if motif.instances:
+    #         num_instances = len(motif.instances)
+    #     print("Number of instances:", num_instances)
+    #     print("Consensus sequence:", motif.consensus)
+    #     break
     
     # print('motifs_db')
     # print(motifs_db)
 
-    # # Load the genome
-    # genome = Fasta(genome_file)
-    # print('genome')
-    # print(genome)
+    # Load the genome
+    genome = Fasta(genome_file)
+    print('genome')
+    print(genome)
 
-    # Then for each peak sequence in your genome, call the function
-    # peak_sequence = Seq("GATTACA")
+    sequences = utils.get_peak_sequences(peaks, genome)
+    print('Number of sequences:', len(sequences))
+    # print(sequences)
+
+    for sequence in sequences:
+        print('sequence:', sequence)
+        found_motifs = utils.find_motifs_in_sequence(sequence, motifs_db)
+        print(found_motifs)
+
+
+
+    # # Then for each peak sequence in your genome, call the function
+    # peak_sequence = Seq("GATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACAGATTACA")
     # found_motifs = utils.find_motifs_in_sequence(peak_sequence, motifs_db)
-    # print('Found motifs:')
-    # print(found_motifs)
+    
     
     
     sys.exit(0)
