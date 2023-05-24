@@ -93,6 +93,7 @@ def get_peak_sequences(peaks, genome):
     sequences = {}
     for peak in peaks:
         chr, start, end = peak
+        chr = str(chr)  # convert integer to string
         sequences[peak] = str(genome[chr][start:end].seq)
     return sequences
 
