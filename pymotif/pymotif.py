@@ -63,16 +63,36 @@ def main():
     print(peaks_df.head())
 
     # Read your motifs from a MEME file (replace with the path to your .meme file)
-    with open(motif_db_file, encoding='utf-8') as f:
-        motifs_db = motifs.parse(f, "meme")
-    
-    print('motifs_db')
-    print(motifs_db)
+    with open(motif_db_file) as f:
+        for format_type in ['minimal', 'pfm', 'transfac', 'jaspar', 'meme', 'sites']:
+            try:
+                f.seek(0)
+                motifs_db = motifs.parse(f, format_type)
+                print(f"Successfully parsed with format '{format_type}'")
+            except Exception as e:
+                print(f"Failed to parse with format '{format_type}': {str(e)}")
 
-    # Load the genome
-    genome = Fasta(genome_file)
-    print('genome')
-    print(genome)
+    for motif in motifs_db:
+        print(motif)
+        print(dir(motif))
+        
+        # print("Motif ID:", motif.id)
+        print("Motif Name:", motif.name)
+        print("Length of Motif:", motif.length)
+        num_instances = 0
+        if motif.instances:
+            num_instances = len(motif.instances)
+        print("Number of instances:", num_instances)
+        print("Consensus sequence:", motif.consensus)
+        break
+    
+    # print('motifs_db')
+    # print(motifs_db)
+
+    # # Load the genome
+    # genome = Fasta(genome_file)
+    # print('genome')
+    # print(genome)
 
     # Then for each peak sequence in your genome, call the function
     # peak_sequence = Seq("GATTACA")
