@@ -6,10 +6,10 @@ PyMotif is a bioinformatics tool designed to identify enriched motifs from DNA s
 
 # Install instructions
 
-Installation requires the `pandas` , `pyfaidx` and `BioPython` libraries to be installed. You can install these with `pip`:
+Installation requires the `pandas`, `pyfaidx`, `pysam`, and `BioPython` libraries to be installed. You can install these with `pip`:
 
 ```
-pip install pandas BioPython pyfaidx
+pip install pandas pyfaidx pysam BioPython
 ```
 
 Once required libraries are installed, you can install `pymotif` with the following command:
@@ -34,7 +34,7 @@ The basic usage of `pymotif` is:
 pymotif <peaks file> <genome> <output directory> -size # [options]
 ```
 
-The follwoing command assumes you are in the repo directory and have downloaded GRCm38.fa to the example-files folder.
+The following command assumes you are in the repo directory and have downloaded GRCm38.fa to the example-files folder.
 
 To run `pymotif` on a small test example (using files in this repo):
 ```
@@ -58,9 +58,9 @@ PyMotif takes the following command line arguments:
 
 ## Required arguments
 
-- `peak_file`: This is the path to your peak or BED file.
-- `genome`: This is the path to your genome fasta file.
-- `output_directory`: This is the path to the directory where you want PyMotif to output its results.
+- `peak_file`: The path to your peak or BED file.
+- `genome`: The path to your genome fasta file. For example, you can use the mouse genome GCF_000001635.27_GRCm39_genomic.fna by downloading the assembly from NCBI: https://www.ncbi.nlm.nih.gov/assembly/GCF_000001635.27
+- `output_directory`: The path to the directory where you want PyMotif to output its results.
 
 Example usage with required arguments:
 
@@ -70,6 +70,7 @@ pymotif ERpeaks.txt hg18 ER_MotifOutput/
 
 - `-size`: This is the size of the motif to search for. It defaults to 200 if not specified.
 - `-mask`: If included in the command, PyMotif will mask the genome. 
+- `-motifs`: The path to a known motifs file.  Default is 
 
 Example usage with optional arguments:
 

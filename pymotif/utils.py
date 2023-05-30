@@ -9,11 +9,13 @@ import random
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
+import time
+import pysam
 from Bio import motifs, SeqIO
 from Bio.Seq import Seq
 from collections import defaultdict
-import time
-import pysam
+
+from itertools import islice
 
 import multiprocessing as mp
 
@@ -108,32 +110,35 @@ def get_peak_sequences(peaks, genome):
         sequences[peak] = str(genome[chr][start:end].seq)
     return sequences
 
-def write_known_results_file(found_motifs, filename, total_sequences, total_background):
-    with open(filename, 'w', encoding='utf-8') as f:
+def write_known_results_file(found_motifs, out_file, total_sequences, total_background, top_n=25):
+    sorted_found_motifs = defaultdict(dict, sorted(found_motifs.items(), key=lambda x: x[1]['pval']))
+    top_keys = [key for key in list(islice(found_motifs.keys(), top_n))]
+    with open(out_file, 'w', encoding='utf-8') as f:
         # Write the header
-        f.write("Motif Name\tConsensus\tP-value\tLog P-value\tq-value (Benjamini)\t# of Target Sequences with Motif(of {0})\t% of Target Sequences with Motif\t# of Background Sequences with Motif(of {1})\t% of Background Sequences with Motif\n".format(total_sequences, total_background))
+        f.write("Motif Name\tConsensus\tP-value\tLog P-value\t# of Target Sequences with Motif(of {0})\t% of Target Sequences with Motif\t# of Background Sequences with Motif(of {1})\t% of Background Sequences with Motif\n".format(total_sequences, total_background))
         
+
         # Write the values for each motif
-        for motif in found_motifs:
+        for motif_id in top_keys:
+            motif = found_motifs[motif_id]['motif']
             name = motif.name
             consensus = motif.consensus
             # Assuming that p_value, q_value are attributes of the motif object (you'll need to calculate them somehow)
-            p_value = motif.p_value  
-            q_value = motif.q_value 
+            p_value = found_motifs[motif_id]['pval']
             log_p_value = math.log10(p_value) * -1  # convert p-value to log scale and make it positive
 
             # Calculate the number and percentage of sequences with the motif
-            num_target_sequences = len(motif.instances)
+            num_target_sequences = found_motifs[motif_id]['num_peak_pass']
             percent_target_sequences = num_target_sequences / total_sequences * 100
 
             # Calculate the number and percentage of background sequences with the motif
             # (This requires knowing how the motif was found in the background sequences)
-            num_background_sequences = len(motif.background_instances)
+            num_background_sequences = found_motifs[motif_id]['num_bg_pass']
             percent_background_sequences = num_background_sequences / total_background * 100
 
             # Write the line for this motif
-            f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6:.2f}%\t{7}\t{8:.2f}%\n".format(
-                name, consensus, p_value, log_p_value, q_value, 
+            f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5:.2f}%\t{6}\t{7:.2f}%\n".format(
+                name, consensus, p_value, log_p_value, 
                 num_target_sequences, percent_target_sequences, 
                 num_background_sequences, percent_background_sequences))
 
@@ -174,17 +179,7 @@ def score_seq(pwm, seq_array):
     score : float
        PWM score of the sequence
     """
-    # seq_array = np.array([nucs[nuc] for nuc in sequence])
-    # print('seq_array', seq_array)
-
     score = pwm[seq_array, np.arange(pwm.shape[1])].sum()
-    # score = 0
-    # for i,b in enumerate(sequence):
-    #     # Check if sequence nucleotide index is out of bounds
-    #     if i >= pwm.length:
-    #         break
-    #     ind = nucs[b]
-    #     score += pwm[ind,i]     
     return score
 
 def reverse_complement(sequence):
@@ -228,18 +223,12 @@ def find_max_score(pwm, sequence):
     rev_seq_array = seq_array[::-1]
     
     max_score = -1*np.inf
-    # rev_sequence = reverse_complement(sequence)
-    # pwm = pwm_to_numpy(pwm)
-    # M = pwm.length
+
     M = pwm.shape[1]
 
     L = len(sequence)
     for i in range(L-M+1):      
-        # fwd_seq = sequence[i:i+M]
-        # fwd_score = score_seq(pwm, fwd_seq)
-        fwd_score = score_seq(pwm, seq_array[i:i+M])
-        # rev_seq = rev_sequence[i:i+M]
-        # rev_score = score_seq(pwm, rev_seq)      
+        fwd_score = score_seq(pwm, seq_array[i:i+M])  
         rev_score = score_seq(pwm, rev_seq_array[i:i+M])
         max_score = max(max_score, fwd_score, rev_score)
 
@@ -286,8 +275,6 @@ def random_sequence(n, freqs):
     seq_array : np.array
        random sequence of length n with the specified allele frequencies
     """
-    # nucleotides = ['A', 'C', 'G', 'T']
-    # seq = ''.join(np.random.choice(nucleotides, size=n, p=freqs))
     nucleotides = np.array([0,1,2,3])
     seq_array = np.random.choice(nucleotides, size=n, p=freqs)
     return seq_array
@@ -342,7 +329,6 @@ def compute_enrichment(peak_total, peak_motif, bg_total, bg_motif):
     odds, pval = stats.fisher_exact(table)
     return pval
 
-
 def generate_background_sequences(fasta_file, num_sequences, sequence_length):
     """
     Generate a list of randomly sampled sequences from a genome FASTA file
@@ -393,9 +379,8 @@ def generate_background_sequences(fasta_file, num_sequences, sequence_length):
     fasta.close()
     return bg_seqs
 
-
 def process_motif(args):
-    motif, i, motif_db, num_sim, null_pval_thresh, enrichment_pval_thresh, peak_seqs, bg_seqs, freqs = args
+    motif, i, motif_db, num_sim, null_pval_thresh, peak_seqs, bg_seqs, freqs = args
     motif_id = motif.base_id
     motif_name = motif.name
     start_time = time.time()
@@ -409,7 +394,7 @@ def process_motif(args):
 
     print(f'Processing motif {motif_name} ({i+1}/{len(motif_db)}) Core Time elapsed: {time.time() - start_time:.2f}')
 
-    result = (motif_id, motif, pval, num_peak_pass, num_bg_pass) if pval < enrichment_pval_thresh else None
+    result = (motif_id, motif, pval, num_peak_pass, num_bg_pass)
     return result
 
 def compute_motif_pvals(motif_db, peak_seqs, bg_seqs, num_sim=10000, 
@@ -430,13 +415,14 @@ def compute_motif_pvals(motif_db, peak_seqs, bg_seqs, num_sim=10000,
     start_time = time.time()
 
     with mp.Pool(processes=num_cores) as pool:
-        args = [(motif, i, motif_db, num_sim, null_pval_thresh, enrichment_pval_thresh, peak_seqs, bg_seqs, freqs) for i, motif in enumerate(motif_db)]
+        args = [(motif, i, motif_db, num_sim, null_pval_thresh, peak_seqs, bg_seqs, freqs) for i, motif in enumerate(motif_db)]
         results = pool.map(process_motif, args)
 
     found_motifs = defaultdict(dict)
     for result in results:
         if result is not None:
-            
+            if result[2] > enrichment_pval_thresh:
+                continue
             motif_id, motif, pval, num_peak_pass, num_bg_pass = result
             motif_name = motif.name
             found_motifs[motif_id]['motif'] = motif
@@ -447,6 +433,7 @@ def compute_motif_pvals(motif_db, peak_seqs, bg_seqs, num_sim=10000,
                 {num_bg_pass}/{len(bg_seqs)} background; p-val: {round(pval,6)}")
             
     print(f'Total time elapsed: {time.time() - start_time:.2f} seconds')
+
     return found_motifs
 
         
