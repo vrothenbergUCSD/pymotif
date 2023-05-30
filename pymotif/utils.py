@@ -15,6 +15,8 @@ from collections import defaultdict
 import time
 import pysam
 
+import multiprocessing as mp
+
 nucs = {"A": 0, "C": 1, "G": 2, "T": 3}
 rev_nucs = {"A": "T", "C": "G", "G": "C", "T": "A"}
 
@@ -150,9 +152,14 @@ def display_motif(motif):
     print(dir(motif))
 
 
+def pwm_to_numpy(pwm):
+    """Convert BioPython PWM to NumPy array."""
+    nucs = ['A', 'C', 'G', 'T']
+    pwm_array = np.vstack([pwm[n] for n in nucs])
+    return pwm_array
 
 
-def score_seq(pwm, sequence):
+def score_seq(pwm, seq_array):
     """ Score a sequence using a PWM
     
     Parameters
@@ -167,13 +174,17 @@ def score_seq(pwm, sequence):
     score : float
        PWM score of the sequence
     """
-    score = 0
-    for i,b in enumerate(sequence):
-        # Check if sequence nucleotide index is out of bounds
-        if i >= pwm.length:
-            break
-        ind = nucs[b]
-        score += pwm[ind,i]     
+    # seq_array = np.array([nucs[nuc] for nuc in sequence])
+    # print('seq_array', seq_array)
+
+    score = pwm[seq_array, np.arange(pwm.shape[1])].sum()
+    # score = 0
+    # for i,b in enumerate(sequence):
+    #     # Check if sequence nucleotide index is out of bounds
+    #     if i >= pwm.length:
+    #         break
+    #     ind = nucs[b]
+    #     score += pwm[ind,i]     
     return score
 
 def reverse_complement(sequence):
@@ -213,15 +224,23 @@ def find_max_score(pwm, sequence):
     max_score : float
        Score of top match to the PWM
     """
+    seq_array = np.array([nucs[s] for s in sequence])
+    rev_seq_array = seq_array[::-1]
+    
     max_score = -1*np.inf
-    rev_sequence = reverse_complement(sequence)
-    M = pwm.length
+    # rev_sequence = reverse_complement(sequence)
+    # pwm = pwm_to_numpy(pwm)
+    # M = pwm.length
+    M = pwm.shape[1]
+
     L = len(sequence)
     for i in range(L-M+1):      
-        fwd_seq = sequence[i:i+M]
-        fwd_score = score_seq(pwm, fwd_seq)
-        rev_seq = rev_sequence[i:i+M]
-        rev_score = score_seq(pwm, rev_seq)      
+        # fwd_seq = sequence[i:i+M]
+        # fwd_score = score_seq(pwm, fwd_seq)
+        fwd_score = score_seq(pwm, seq_array[i:i+M])
+        # rev_seq = rev_sequence[i:i+M]
+        # rev_score = score_seq(pwm, rev_seq)      
+        rev_score = score_seq(pwm, rev_seq_array[i:i+M])
         max_score = max(max_score, fwd_score, rev_score)
 
     return max_score
@@ -264,12 +283,14 @@ def random_sequence(n, freqs):
        
     Returns
     -------
-    seq : str
+    seq_array : np.array
        random sequence of length n with the specified allele frequencies
     """
-    nucleotides = ['A', 'C', 'G', 'T']
-    seq = ''.join(np.random.choice(nucleotides, size=n, p=freqs))
-    return seq
+    # nucleotides = ['A', 'C', 'G', 'T']
+    # seq = ''.join(np.random.choice(nucleotides, size=n, p=freqs))
+    nucleotides = np.array([0,1,2,3])
+    seq_array = np.random.choice(nucleotides, size=n, p=freqs)
+    return seq_array
 
 def get_threshold(null_dist, pval):
     """ Find the threshold to achieve a desired p-value
@@ -373,8 +394,26 @@ def generate_background_sequences(fasta_file, num_sequences, sequence_length):
     return bg_seqs
 
 
+def process_motif(args):
+    motif, i, motif_db, num_sim, null_pval_thresh, enrichment_pval_thresh, peak_seqs, bg_seqs, freqs = args
+    motif_id = motif.base_id
+    motif_name = motif.name
+    start_time = time.time()
+
+    pwm = pwm_to_numpy(motif.pwm)
+    null_scores = [score_seq(pwm, random_sequence(pwm.shape[1], freqs)) for j in range(num_sim)]
+    thresh = get_threshold(null_scores, null_pval_thresh)
+    num_peak_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in peak_seqs])
+    num_bg_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in bg_seqs])
+    pval = compute_enrichment(len(peak_seqs), num_peak_pass, len(bg_seqs), num_bg_pass)
+
+    print(f'Processing motif {motif_name} ({i+1}/{len(motif_db)}) Core Time elapsed: {time.time() - start_time:.2f}')
+
+    result = (motif_id, motif, pval, num_peak_pass, num_bg_pass) if pval < enrichment_pval_thresh else None
+    return result
+
 def compute_motif_pvals(motif_db, peak_seqs, bg_seqs, num_sim=10000, 
-                        null_pval_thresh=0.01, enrichment_pval_thresh=1e-5):
+                        null_pval_thresh=0.01, enrichment_pval_thresh=1e-5, num_cores=1):
     """
     Compute p-values for each motif in a database.
     Add motif to found_motifs if it passes the enrichment p-value thresholds.
@@ -384,24 +423,30 @@ def compute_motif_pvals(motif_db, peak_seqs, bg_seqs, num_sim=10000,
                               + [reverse_complement(item) for item in peak_seqs]
                               + [reverse_complement(item) for item in bg_seqs])
 
+    
+    max_cores = mp.cpu_count()
+    print(f'Using {num_cores} cores out of {max_cores} available cores')
+
     start_time = time.time()
+
+    with mp.Pool(processes=num_cores) as pool:
+        args = [(motif, i, motif_db, num_sim, null_pval_thresh, enrichment_pval_thresh, peak_seqs, bg_seqs, freqs) for i, motif in enumerate(motif_db)]
+        results = pool.map(process_motif, args)
+
     found_motifs = defaultdict(dict)
-    for i, motif in enumerate(motif_db):
-        motif_id = motif.base_id
-        print(f'Processing motif {motif_id} ({i+1}/{len(motif_db)}) Time elapsed: {time.time() - start_time:.2f}')
-        pwm = motif.pwm
-        null_scores = [score_seq(pwm, random_sequence(pwm.length, freqs)) for j in range(num_sim)]
-        thresh = get_threshold(null_scores, null_pval_thresh)
-        num_peak_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in peak_seqs])
-        num_bg_pass = np.sum([int(find_max_score(pwm, seq)>thresh) for seq in bg_seqs])
-        pval = compute_enrichment(len(peak_seqs), num_peak_pass, len(bg_seqs), num_bg_pass)
-        if pval < enrichment_pval_thresh:
+    for result in results:
+        if result is not None:
+            
+            motif_id, motif, pval, num_peak_pass, num_bg_pass = result
+            motif_name = motif.name
             found_motifs[motif_id]['motif'] = motif
             found_motifs[motif_id]['pval'] = pval
             found_motifs[motif_id]['num_peak_pass'] = num_peak_pass
             found_motifs[motif_id]['num_bg_pass'] = num_bg_pass
-            print(f"PWM: {motif_id}, {num_peak_pass}/{len(peak_seqs)} peaks, \
-                {num_bg_pass}/{len(bg_seqs)} background; p-val: {pval}")
+            print(f"{motif_name}, {num_peak_pass}/{len(peak_seqs)} peaks, \
+                {num_bg_pass}/{len(bg_seqs)} background; p-val: {round(pval,6)}")
+            
+    print(f'Total time elapsed: {time.time() - start_time:.2f} seconds')
     return found_motifs
 
         
