@@ -20,11 +20,11 @@ python setup.py install
 
 Note: if you do not have root access, you can run the commands above with additional options to install locally:
 ```
-pip install --user pandas BioPython
+pip install --user pandas pyfaidx pysam BioPython
 python setup.py install --user
 ```
 
-If the install was successful, typing `pymotif --help` should show a useful message.
+If the installation was successful, typing `pymotif --help` should show a useful message.
 
 # Basic usage
 
@@ -42,10 +42,7 @@ pymotif example-files/peaks.txt example-files/GRCm38.fa ~/testOutput/ -size 200 
 ```
 
 
-This should produce the output below:
-```
-...
-```
+When the program begins, it should output statistics about usage, including version, number of sequences, and number of background sequences. As the program runs, it will output the motif it is evaluating along with its elapsed time. The final product will be in the `knownResults.txt` file which includes information about the motifs passing the p-value threshold, including the motif name, consensus sequence, p-value, and other statistics. Please note that the program currently takes quite some time to complete (about an hour); we are working on fixing this in a future version of our tool.
 
 To compare to output of HOMER run:
 ```
@@ -58,27 +55,33 @@ PyMotif takes the following command line arguments:
 
 ## Required arguments
 
-- `peak_file`: The path to your peak or BED file.
+- `peak_file`: The path to your peak or BED file. This file may be generated using Homer's `findPeaks` function; from a fastqc file of reads, generate an aligned bam file and create tag directories through Homer (`makeTagDirectory`).
 - `genome`: The path to your genome fasta file. For example, you can use the mouse genome GCF_000001635.27_GRCm39_genomic.fna by downloading the assembly from NCBI: https://www.ncbi.nlm.nih.gov/assembly/GCF_000001635.27
 - `output_directory`: The path to the directory where you want PyMotif to output its results.
 
 Example usage with required arguments:
 
+```
 pymotif ERpeaks.txt hg18 ER_MotifOutput/
+```
 
 ## Optional arguments
 
 - `-size`: This is the size of the motif to search for. It defaults to 200 if not specified.
 - `-mask`: If included in the command, PyMotif will mask the genome. 
-- `-motifs`: The path to a known motifs file.  Default is 
+- `-motifs`: The path to a known motifs file.
 
 Example usage with optional arguments:
 
+```
 pymotif ERpeaks.txt hg18 ER_MotifOutput/ -size 200 -mask
+```
 
 # File format
 
-The output file format is the same as the HOMER knownResults.txt file.  See: http://homer.ucsd.edu/homer/ngs/peakMotifs.html 
+The output file format is the same as the HOMER knownResults.txt file.  It includes column-formatted information about the motif name, consensus sequence,	p-value,	log p-value,	number of target sequences with the motif, percentage of target sequences with the motif, number of background sequences with the motif, and percentage of background sequences with the motif.
+
+See: http://homer.ucsd.edu/homer/ngs/peakMotifs.html
 
 # Contributors
 
