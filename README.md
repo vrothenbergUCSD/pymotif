@@ -38,9 +38,11 @@ The following command assumes you are in the repo directory and have downloaded 
 
 To run `pymotif` on a small test example (using files in this repo):
 ```
+cp ~/public/genomes/GRCm38.fa ~/pymotif/example-files
 pymotif example-files/peaks.txt example-files/GRCm38.fa ~/testOutput/ -size 200 -mask
 ```
 
+Note, the first command assumes you are using a UCSD JupyterHub terminal for CSE 185. Please visit https://www.ncbi.nlm.nih.gov/assembly/GCF_000001635.20/ to download `GRCm38.fa` otherwise. You may also need to modify file paths to match your directories.
 
 When the program begins, it should output statistics about usage, including version, number of sequences, and number of background sequences. As the program runs, it will output the motif it is evaluating along with its elapsed time. The final product will be in the `knownResults.txt` file which includes information about the motifs passing the p-value threshold, including the motif name, consensus sequence, p-value, and other statistics. Please note that the program currently takes quite some time to complete (about an hour); we are working on fixing this in a future version of our tool.
 
