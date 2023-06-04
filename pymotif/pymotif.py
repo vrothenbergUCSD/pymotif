@@ -124,7 +124,9 @@ def main():
                     print_log(logger, f"Failed to parse with format '{file_format}': {str(exception)}")
                     continue
 
-    peaks_df = utils.read_peaks_file(peak_file)
+    peaks_df, genome = utils.read_files(peak_file)
+    # print(peaks_df.head())
+    # sys.exit(0)
     peaks = [tuple(x) for x in peaks_df[['chr', 'start', 'end']].values]
 
     # Reducing the number of peaks and motifs for testing
@@ -158,6 +160,8 @@ def main():
 
     # Load the genome
     genome = Fasta(genome_file)
+    print('genome keys:')
+    print(genome.keys())
 
     sequences = utils.get_peak_sequences(peaks, genome)
     print_log(logger, f"Number of sequences: {len(sequences)}")
