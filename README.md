@@ -69,7 +69,7 @@ PyMotif takes the following command line arguments:
 Example usage with required arguments:
 
 ```
-pymotif ERpeaks.txt hg18 ER_MotifOutput/
+pymotif example-files/peaks.txt example-files/GRCm38.fa ~/motif_output/
 ```
 
 ## Optional arguments
@@ -84,7 +84,7 @@ pymotif ERpeaks.txt hg18 ER_MotifOutput/
 Example usage with optional arguments:
 
 ```
-pymotif example-files/peaks.txt example-files/GRCm38.fa motif_output/ -size 200 -mask -cores 4
+pymotif example-files/peaks.txt example-files/GRCm38.fa ~/motif_output/ -size 200 -mask -cores 4
 ```
 
 # File format
