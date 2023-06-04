@@ -1,7 +1,5 @@
 # PyMotif
 
-(Work in progress!)
-
 PyMotif is a bioinformatics tool designed to identify enriched motifs from DNA sequences, similar to the Homer tool. This tool is a Python script that implements a consensus string approach to motif finding.
 
 # Install instructions
@@ -23,6 +21,10 @@ Note: if you do not have root access, you can run the commands above with additi
 pip install --user pandas pyfaidx pysam BioPython
 python setup.py install --user
 ```
+You may also need to run
+```
+PATH+=':<directory location>'
+```
 
 If the installation was successful, typing `pymotif --help` should show a useful message.
 
@@ -34,17 +36,20 @@ The basic usage of `pymotif` is:
 pymotif <peaks file> <genome> <output directory> -size # [options]
 ```
 
-The following command assumes you are in the repo directory and have downloaded GRCm38.fa to the example-files folder.
+The following command assumes you are in the repo directory and have downloaded `GRCm38.fa` to the example-files folder.
 
 To run `pymotif` on a small test example (using files in this repo):
 ```
-cp ~/public/genomes/GRCm38.fa ~/pymotif/example-files
 pymotif example-files/peaks.txt example-files/GRCm38.fa ~/testOutput/ -size 200 -mask
 ```
 
-Note, the first command assumes you are using a UCSD JupyterHub terminal for CSE 185. Please visit https://www.ncbi.nlm.nih.gov/assembly/GCF_000001635.20/ to download `GRCm38.fa` otherwise. You may also need to modify file paths to match your directories.
+To download `GRCm38.fa`, you can visit https://www.ncbi.nlm.nih.gov/assembly/GCF_000001635.20/. If you are using a UCSD JupyterHub terminal for CSE 185 SP23, you can run
+```
+cp ~/public/genomes/GRCm38.fa ~/pymotif/example-files
+```
+You may also need to modify file paths to match your directories.
 
-When the program begins, it should output statistics about usage, including version, number of sequences, and number of background sequences. As the program runs, it will output the motif it is evaluating along with its elapsed time. The final product will be in the `knownResults.txt` file which includes information about the motifs passing the p-value threshold, including the motif name, consensus sequence, p-value, and other statistics. Please note that the program currently takes quite some time to complete (about an hour); we are working on fixing this in a future version of our tool.
+When the program begins, it should output statistics about usage, including version, number of sequences, and number of background sequences. As the program runs, it will output the motif it is evaluating along with its elapsed time. The final product will be in the `knownResults.txt` file which includes information about the motifs passing the p-value threshold, including the motif name, consensus sequence, p-value, and other statistics. Please note that specifying number of cores (see options below) is strongly recommended for faster results.
 
 To compare to output of HOMER run:
 ```
@@ -72,6 +77,9 @@ pymotif ERpeaks.txt hg18 ER_MotifOutput/
 - `-size`: This is the size of the motif to search for. It defaults to 200 if not specified.
 - `-mask`: If included in the command, PyMotif will mask the genome. 
 - `-motifs`: The path to a known motifs file.
+- `-cores`: Number of cores to use. It defaults to 1 if not specified, but it is strongly recommended that you increase the number of cores to maximize efficiency and runtime.
+- `-enrichment_pval_thresh`: Enrichment threshold p-value for motif finding. It defaults to 0.00001 if not specified.
+- `--version`: Print the version and quit.
 
 Example usage with optional arguments:
 
@@ -101,6 +109,3 @@ sh tests/cmdline_tests.sh
 # Run unit tests
 python -m pytest --cov=.
 ```
-
-
-
