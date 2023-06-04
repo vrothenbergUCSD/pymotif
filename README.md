@@ -74,8 +74,7 @@ pymotif example-files/peaks.txt example-files/GRCm38.fa ~/motif_output/
 
 ## Optional arguments
 
-- `-size`: This is the size of the motif to search for. It defaults to 200 if not specified.
-- `-mask`: If included in the command, PyMotif will mask the genome. 
+- `-size`: This is the size of the motif to search for. It defaults to 100 if not specified.
 - `-motifs`: The path to a known motifs file.
 - `-cores`: Number of cores to use. It defaults to 1 if not specified, but it is strongly recommended that you increase the number of cores to maximize efficiency and runtime.
 - `-enrichment_pval_thresh`: Enrichment threshold p-value for motif finding. It defaults to 0.00001 if not specified.
@@ -84,7 +83,7 @@ pymotif example-files/peaks.txt example-files/GRCm38.fa ~/motif_output/
 Example usage with optional arguments:
 
 ```
-pymotif example-files/peaks.txt example-files/GRCm38.fa ~/motif_output/ -size 200 -mask -cores 4
+pymotif example-files/peaks.txt example-files/GRCm38.fa ~/motif_output/ -size 200 -cores 4
 ```
 
 # File format

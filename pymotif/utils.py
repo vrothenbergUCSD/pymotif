@@ -122,19 +122,24 @@ def find_motifs_in_sequence(sequence, motifs_db):
 
     return found_motifs
 
-def get_peak_sequences(peaks, genome):
+def get_peak_sequences(peaks, genome, size):
     """
     This function extracts the sequences corresponding to each peak from the genome.
     :param peaks: List of tuples. Each tuple should have three elements: (chr, start, end).
     :param genome: Fasta object of the genome.
+    :param size: Integer, the number of bases to extract, centered on the middle of the range.
     :return: Dictionary where keys are the peak tuples and values are the sequences.
     """
     sequences = {}
     for peak in peaks:
         chr, start, end = peak
         chr = str(chr)  # convert integer to string
-        sequences[peak] = str(genome[chr][start:end].seq)
+        midpoint = (start + end) // 2  # calculate the midpoint of the range
+        new_start = max(0, midpoint - size // 2)  # calculate the new start position
+        new_end = new_start + size  # calculate the new end position
+        sequences[peak] = str(genome[chr][new_start:new_end].seq)
     return sequences
+
 
 def write_known_results_file(found_motifs, out_file, total_sequences, total_background, top_n=25):
     sorted_found_motifs = defaultdict(dict, sorted(found_motifs.items(), key=lambda x: x[1]['pval']))
@@ -372,10 +377,8 @@ def generate_background_sequences(fasta_file, num_sequences, sequence_length):
     bg_seqs = []
 
     for n in range(num_sequences):
-
-        sequence = 'N'  # initialize sequence with 'N' to enter the while loop
-        while 'N' in sequence:  # keep looping until we get a sequence without 'N'
-
+        while True:  # keep looping until we get a sequence with less than 70% 'N'
+            
             # Generate a random position in the genome
             random_position = random.randint(1, total_length)
 
@@ -399,6 +402,19 @@ def generate_background_sequences(fasta_file, num_sequences, sequence_length):
 
             # Fetch the sequence
             sequence = fasta.fetch(fasta.references[sequence_index], position_in_sequence - 1, position_in_sequence - 1 + sequence_length)
+
+            # Calculate the percentage of 'N' bases
+            percent_N = sequence.count('N') / sequence_length * 100
+
+            # If percentage of 'N' is more than 70%, reject this sequence and generate a new one
+            if percent_N > 70:
+                continue
+            
+            # If 'N' is in the sequence, replace it with a random base
+            if 'N' in sequence:
+                sequence = ''.join([random.choice(['A', 'C', 'G', 'T']) if base == 'N' else base for base in sequence])
+
+            break  # break the loop when we get a valid sequence
 
         bg_seqs.append(sequence)
 

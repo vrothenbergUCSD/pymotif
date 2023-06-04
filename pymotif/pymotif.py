@@ -48,7 +48,7 @@ def main():
     parser.add_argument("output_directory", help="Directory to output results", type=str)
 
     # Optional arguments
-    parser.add_argument("-size", help="Size of motif to search for", type=int, default=200)
+    parser.add_argument("-size", help="Size of regions to search for motifs", type=int, default=100)
     # mask the genome False by default
     parser.add_argument("-mask", help="Use to mask the genome", action='store_true')
     parser.add_argument("-motifs", help="Motifs database to use, e.g. homer or jaspar", type=str, default='jaspar')
@@ -72,7 +72,7 @@ def main():
     print_log(logger, f"Genome: {genome_file}")
     output_directory = utils.convert_to_absolute(args.output_directory)
     print_log(logger, f"Output directory: {output_directory}")
-    print_log(logger, f"Motif size: {args.size}")
+    print_log(logger, f"Peak size: {args.size}")
     print_log(logger, f"Mask genome: {args.mask}")
     print_log(logger, f"Motifs: {args.motifs}")
     print_log(logger, f"Number of cores: {args.cores}")
@@ -124,7 +124,7 @@ def main():
                     print_log(logger, f"Failed to parse with format '{file_format}': {str(exception)}")
                     continue
 
-    peaks_df, genome = utils.read_files(peak_file)
+    peaks_df = utils.read_peaks_file(peak_file)
     # print(peaks_df.head())
     # sys.exit(0)
     peaks = [tuple(x) for x in peaks_df[['chr', 'start', 'end']].values]
@@ -136,34 +136,10 @@ def main():
     peaks = [tuple(x) for x in df_first_n[['chr', 'start', 'end']].values]
     motifs_db = motifs_db[:n_motifs]
 
-    # for motif in motifs_db:
-    #     print('Motif:')
-    #     print(motif)
-    #     print(dir(motif))
-        
-    #     # print("Motif ID:", motif.base_id)
-    #     print("Motif Name:", motif.name)
-    #     # motif_data = motif.name.split('\t')
-    #     # print('motif_data', motif_data)
-    #     # motif.name = motif_data[1].split('/')[0].split('(')[0]
-    #     # motif.log_odds = float(motif_data[2])
-    #     print("Length of Motif:", motif.length)
-    #     num_instances = 0
-    #     if motif.instances:
-    #         num_instances = len(motif.instances)
-    #     print("Number of instances:", num_instances)
-    #     print("Consensus sequence:", motif.consensus, type(motif.consensus))
-    #     print("PWM:", motif.pwm, type(motif.pwm), dir(motif.pwm))
-    #     break
-
-
-
     # Load the genome
     genome = Fasta(genome_file)
-    print('genome keys:')
-    print(genome.keys())
 
-    sequences = utils.get_peak_sequences(peaks, genome)
+    sequences = utils.get_peak_sequences(peaks, genome, args.size)
     print_log(logger, f"Number of sequences: {len(sequences)}")
     peak_seqs = [str(sequence) for sequence in sequences.values()]
 
@@ -171,7 +147,7 @@ def main():
     # logger.info(f"Length of sequences: {len(peak_seqs[0])}")
     print('peak_seqs[0]:', peak_seqs[0])
 
-    bg_seqs = utils.generate_background_sequences(genome_file, len(peak_seqs), len(peak_seqs[0]))
+    bg_seqs = utils.generate_background_sequences(genome_file, len(peak_seqs), args.size)
     print('bg_seqs', len(bg_seqs), len(bg_seqs[0]))
     print('bg_seqs[0]:', bg_seqs[0])
 
