@@ -54,6 +54,7 @@ def main():
     parser.add_argument("-motifs", help="Motifs database to use, e.g. homer or jaspar", type=str, default='jaspar')
     parser.add_argument("-cores", help="Number of cores to use", type=int, default=1)
     parser.add_argument("-enrichment_pval_thresh", help="Enrichment threshold p-value for motif finding", type=float, default=0.00001)
+    parser.add_argument("-num_peaks", help="Number of peaks to use out of peaks file, default all", type=int, default=-1)
     parser.add_argument("--version", help="Print the version and quit", \
         action="version", version = f'{__version__}')
 
@@ -77,6 +78,7 @@ def main():
     print_log(logger, f"Motifs: {args.motifs}")
     print_log(logger, f"Number of cores: {args.cores}")
     print_log(logger, f"Enrichment p-value threshold: {args.enrichment_pval_thresh}")
+    print_log(logger, f"Number of peaks: {args.num_peaks}")
 
     # Create a log folder if it doesn't exist
     log_folder = os.path.join(output_directory, 'logs')
@@ -130,7 +132,7 @@ def main():
     peaks = [tuple(x) for x in peaks_df[['chr', 'start', 'end']].values]
 
     # Reducing the number of peaks and motifs for testing
-    n_peaks = -1 # All peaks use -1
+    n_peaks = args.num_peaks # All peaks use -1
     n_motifs = -1 # All motifs use -1
     df_first_n = peaks_df.head(n_peaks)
     peaks = [tuple(x) for x in df_first_n[['chr', 'start', 'end']].values]
