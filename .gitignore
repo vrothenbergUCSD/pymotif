@@ -10,5 +10,20 @@ build/*
 *.egg
 
 # Ignore genome fasta file
-example-files/*.fa
-example-files/*.fai
+*.fa
+*.fna
+*.fai
+*.gz
+
+# Ignore linting files
+.pylintrc
+
+# Ignore logging files
+logs/*.log
+
+# Pickle files
+*.pkl
+
+*.DS_Store
+
+*stats_outputfile

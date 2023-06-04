@@ -4,10 +4,10 @@ PyMotif is a bioinformatics tool designed to identify enriched motifs from DNA s
 
 # Install instructions
 
-Installation requires the `pandas`, `pyfaidx`, `pysam`, and `BioPython` libraries to be installed. You can install these with `pip`:
+Installation requires the `BioPython`, `numpy`, `pandas`, `pyfaidx`, `pysam`, and `scipy` libraries to be installed. You can install these with `pip`:
 
 ```
-pip install pandas pyfaidx pysam BioPython
+pip install BioPython numpy pandas pyfaidx pysam scipy
 ```
 
 Once required libraries are installed, you can install `pymotif` with the following command:
@@ -84,7 +84,7 @@ pymotif ERpeaks.txt hg18 ER_MotifOutput/
 Example usage with optional arguments:
 
 ```
-pymotif ERpeaks.txt hg18 ER_MotifOutput/ -size 200 -mask
+pymotif example-files/peaks.txt example-files/GRCm38.fa motif_output/ -size 200 -mask -cores 4
 ```
 
 # File format
