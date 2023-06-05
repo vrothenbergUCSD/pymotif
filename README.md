@@ -18,7 +18,7 @@ python setup.py install
 
 Note: if you do not have root access, you can run the commands above with additional options to install locally:
 ```
-pip install --user pandas pyfaidx pysam BioPython
+pip install --user BioPython numpy pandas pyfaidx pysam scipy
 python setup.py install --user
 ```
 You may also need to run
